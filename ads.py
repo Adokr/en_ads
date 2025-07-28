@@ -119,7 +119,6 @@ DISCOURSE_MARKERS = {'and', 'despite', 'prior'}
 def checkForDiscourseMarkers(graph, token):
     found = False
     for successor in graph.successors(token):
-        print(f"ASDA: {getGovernor(graph, getGovernor(graph, getGovernor(graph, successor)[0])[0])[0]}")
         if graph.nodes[successor]['lemma'] in DISCOURSE_MARKERS and getGovernor(graph, getGovernor(graph, getGovernor(graph, successor)[0])[0])[0] != token-1:
             found = True
             break
@@ -133,39 +132,46 @@ def find_governors_from_graph(graph: nx.DiGraph, subroot=None) -> list:
         deprel = graph.edges[root, token]['ud_label']
         root_upos = graph.nodes[root]['upos']
         print(graph.nodes[token]['token'])
+        #1. ogólna zasada, ale z dość szczegółowym wyjątkiem
         if deprel in TAGS:
             if deprel == "acl:relcl" and graph.edges[getGovernor(graph, root)[0], root]["ud_label"] == "nmod" and root_upos == "PRON":
                 return False
             return True
+
+        #2. ogólna
         elif upos == "VERB" and deprel in VERB_TAGS:
             return True
+
+        #3. dość ogólna
         elif upos == "VERB" and deprel == "conj" and graph.edges[getGovernor(graph, root)[0], root]["ud_label"] not in {"xcomp"}: #acl:
             return True
+
+        #4. dość ogólna
         elif upos == "VERB" and deprel == "ccomp" and check_successors(graph, token, {"SCONJ"}, {"mark"})[0]:
             return True
+        #5. ogólna
         elif upos == "ADJ" and deprel in VERB_TAGS and root_upos not in {"ADJ", "NOUN"}:
             return True
+        #6. dość ogólna
         elif upos == "ADV" and deprel == "advcl:relcl" and check_successors(graph, token, {"VERB"}, {"xcomp", "aux"})[0]:
             return True
+
+        #7. raczej szczegółowa
         elif upos == "ADV" and deprel == "obl" and graph.edges[getGovernor(graph, root)[0], root]["ud_label"] == "xcomp":
             return True
         #elif deprel == "orphan":
          #   return True
+
+        #8. raczej szczegółowa
         elif upos == "NOUN" and deprel == "appos" and check_successors(graph, token, {"PUNCT"}, {"punct"})[0]:
             return True
 
+        #9. raczej szczegółowa
         elif upos == "NOUN" and root_upos != "NOUN" and check_successors(graph, token, {"CCONJ"}, {"cc"})[0]:
             return True
 
-        elif upos == "NOUN" and root_upos == "NOUN":
-            if check_successors(graph, token, {"PUNCT"}, {"punct"}):
-                for successor in graph.successors(token):
-                    if graph.nodes[successor]['lemma'] == "(":
-                        for successor2 in graph.successors(token):
-                            if graph.nodes[successor2]['lemma'] == ")":
-                                return True
-            return False
 
+        #10. szczegółowa: liczby w nawiasach bo dużo ich było w tekście naukowym jako przypisy
         elif upos == "NUM" and deprel in {"nmod", "dep"}:
             first_gov = getGovernor(graph, token)[0]
             if first_gov == 0:
@@ -178,6 +184,7 @@ def find_governors_from_graph(graph: nx.DiGraph, subroot=None) -> list:
                 return True
         #elif upos == "PROPN" and deprel == "conj" and root_upos == "PROPN" and root != 0 and graph.edges[getGovernor(graph, root)[0], root]["ud_label"] == "dep":
          #   return True
+        #11.
         elif deprel == "nmod" and check_successors(graph, token, {"VERB"}, {"case"})[0]:
             return True
             '''elif upos == "SCONJ" and deprel == "mark":
@@ -185,7 +192,7 @@ def find_governors_from_graph(graph: nx.DiGraph, subroot=None) -> list:
             if token + 1 != gov_token:
                 return True'''
 
-        #WYDZIELANIE FRAZ PRZYIKMOWYCH Z MARKERAMI DYSKURSU
+        #12. WYDZIELANIE FRAZ PRZYIKMOWYCH Z MARKERAMI DYSKURSU
         elif deprel == "obl":
            successor = check_successors(graph, token, {"ADP"}, {"case"})[0]
            if successor and successor['lemma'] in DISCOURSE_MARKERS:
@@ -197,6 +204,7 @@ def find_governors_from_graph(graph: nx.DiGraph, subroot=None) -> list:
                     return False
                 elif successor and check_successors(graph, successor[1], {"ADP"}, {"fixed"}) and successor[0]['lemma'] in DISCOURSE_MARKERS:
                     return True
+        #13. szczegółowa: wydzielanie nawiasów i ich zawartości
         elif check_successors(graph, token, {"PUNCT"}, {"punct"})[0]:
              for successor in graph.successors(token):
                 if graph.nodes[successor]['lemma'] == "(":
